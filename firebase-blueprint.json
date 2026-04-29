@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "mobile": { "type": "string" },
+        "pin": { "type": "string" },
+        "role": { "type": "string", "enum": ["viewer", "organizer", "admin", "dev"] },
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "mobile", "pin", "role"]
+    },
+    "Team": {
+      "title": "Team",
+      "description": "Cricket team information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "shortName": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "players": { "type": "array" }
+      },
+      "required": ["id", "name", "ownerId"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Cricket match details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "teamA": { "type": "string" },
+        "teamB": { "type": "string" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["upcoming", "live", "finished"] },
+        "tournamentId": { "type": "string" },
+        "format": { "type": "string", "enum": ["T20", "ODI", "Test", "Custom"] },
+        "overs": { "type": "number" },
+        "organizerId": { "type": "string" }
+      },
+      "required": ["id", "teamA", "teamB", "status", "organizerId"]
+    },
+    "Tournament": {
+      "title": "Tournament",
+      "description": "Cricket tournament details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "organizerId": { "type": "string" },
+        "status": { "type": "string", "enum": ["upcoming", "ongoing", "finished"] }
+      },
+      "required": ["id", "name", "organizerId"]
+    },
+    "LiveScore": {
+      "title": "LiveScore",
+      "description": "Real-time match scoring state",
+      "type": "object",
+      "properties": {
+        "matchId": { "type": "string" },
+        "runs": { "type": "number" },
+        "wickets": { "type": "number" },
+        "overs": { "type": "number" },
+        "balls": { "type": "number" },
+        "currentInnings": { "type": "number" },
+        "battingTeamId": { "type": "string" },
+        "recentBalls": { "type": "array" }
+      },
+      "required": ["matchId", "runs", "wickets", "overs", "balls"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User records"
+    },
+    "/teams/{teamId}": {
+      "schema": "Team",
+      "description": "Team records"
+    },
+    "/matches/{matchId}": {
+      "schema": "Match",
+      "description": "Match records"
+    },
+    "/tournaments/{tournamentId}": {
+      "schema": "Tournament",
+      "description": "Tournament records"
+    },
+    "/live_scores/{matchId}": {
+      "schema": "LiveScore",
+      "description": "Real-time scores for matches"
+    }
+  }
+}

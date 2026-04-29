@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- USERS ---
+    match /users/{userId} {
+      allow get: if isOwner(userId) || (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+      allow create: if isSignedIn() && isOwner(userId) && 
+                      incoming().role == 'viewer'; // Default role
+      allow update: if isOwner(userId) && 
+                      incoming().role == existing().role && // Cannot change own role
+                      incoming().keys().hasOnly(['name', 'mobile', 'updatedAt']);
+    }
+
+    // --- TEAMS ---
+    match /teams/{teamId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().ownerId == request.auth.uid;
+      allow update: if isSignedIn() && existing().ownerId == request.auth.uid &&
+                      incoming().ownerId == existing().ownerId;
+      allow delete: if isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    // --- MATCHES ---
+    match /matches/{matchId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().organizerId == request.auth.uid;
+      allow update: if isSignedIn() && existing().organizerId == request.auth.uid &&
+                      incoming().organizerId == existing().organizerId;
+    }
+
+    // --- LIVE SCORES ---
+    match /live_scores/{matchId} {
+      allow read: if true;
+      allow write: if isSignedIn() && 
+                    get(/databases/$(database)/documents/matches/$(matchId)).data.organizerId == request.auth.uid;
+    }
+    
+    // --- ADMINS ---
+    match /admins/{adminId} {
+      allow read: if isOwner(adminId);
+    }
+  }
+}
