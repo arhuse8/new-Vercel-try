@@ -38,7 +38,7 @@ export default function AdminDashboard() {
     // Subscribe to changes
     const channel = supabase
       .channel('admin_users')
-      .on('postgres_changes', { event: '*', table: 'profiles' }, () => {
+      .on('postgres_changes' as any, { event: '*', table: 'profiles' }, () => {
         fetchRecentUsers();
       })
       .subscribe();

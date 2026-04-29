@@ -13,10 +13,34 @@ import {
   ShieldCheck,
   AlertCircle
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export default function DevAdmin() {
   const [serverLoad, setServerLoad] = useState(12);
   const [activeUsers, setActiveUsers] = useState(1420);
+
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [targetId, setTargetId] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const elevateUser = async (role: string) => {
+    if (!targetId) return;
+    setUpgradeLoading(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role })
+        .eq('id', targetId);
+      
+      if (error) throw error;
+      setSuccessMsg(`User ${targetId} elevated to ${role}`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setUpgradeLoading(false);
+    }
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -82,7 +106,39 @@ export default function DevAdmin() {
 
              {/* Command Center */}
              <aside className="space-y-4">
-                <div className="p-6 bg-green-500/5 rounded-2xl border border-green-500/20">
+                <div className="p-6 bg-purple-500/5 rounded-2xl border border-purple-500/20">
+                    <h3 className="text-xs uppercase font-black mb-6 flex items-center gap-2 text-purple-500">
+                       <Zap size={14} /> Profile Elevation
+                    </h3>
+                    <div className="space-y-4">
+                       <input 
+                         placeholder="Paste User ID (UUID)"
+                         className="w-full bg-black border border-purple-500/20 rounded-lg p-3 text-[10px] text-white outline-none focus:border-purple-500 transition-all font-mono"
+                         value={targetId}
+                         onChange={(e) => setTargetId(e.target.value)}
+                       />
+                       <div className="grid grid-cols-2 gap-2">
+                          <button 
+                            disabled={upgradeLoading || !targetId} 
+                            onClick={() => elevateUser('organizer')}
+                            className="py-2 bg-purple-500/20 text-purple-400 font-black uppercase text-[9px] rounded-lg border border-purple-500/20 hover:bg-purple-500 hover:text-black transition-all"
+                          >
+                             TO_ORGANIZER
+                          </button>
+                          <button 
+                            disabled={upgradeLoading || !targetId} 
+                            onClick={() => elevateUser('admin')}
+                            className="py-2 bg-red-500/20 text-red-400 font-black uppercase text-[9px] rounded-lg border border-red-500/20 hover:bg-red-500 hover:text-black transition-all"
+                          >
+                             TO_ADMIN
+                          </button>
+                       </div>
+                       {successMsg && <p className="text-[10px] text-white animate-pulse">{successMsg}</p>}
+                       <p className="text-[9px] text-neutral-600 italic">ELEVATE command directly mutates profiles table.</p>
+                    </div>
+                 </div>
+
+                 <div className="p-6 bg-green-500/5 rounded-2xl border border-green-500/20">
                    <h3 className="text-xs uppercase font-black mb-6 flex items-center gap-2">
                       <ShieldCheck size={14} /> Security Lockdown
                    </h3>

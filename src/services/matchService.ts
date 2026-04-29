@@ -24,7 +24,11 @@ export const MatchService = {
           score: {
             runs: 0,
             wickets: 0,
-            balls: 0
+            balls: 0,
+            overs: 0,
+            recentBalls: [],
+            history: [],
+            battingTeam: matchData.teamA
           }
         }
       ])
@@ -106,7 +110,7 @@ export const MatchService = {
     // Real-time subscription
     const subscription = supabase
       .channel('matches_channel')
-      .on('postgres_changes', { event: '*', table: MATCHES_TABLE }, async () => {
+      .on('postgres_changes' as any, { event: '*', table: MATCHES_TABLE }, async () => {
         // Simple re-fetch on change for now
         const { data } = await query;
         if (data) {

@@ -39,26 +39,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data) {
         setProfile(data);
       } else {
-        // Create profile if it doesn't exist
+        // Only create a fallback profile if registration didn't do it
+        // and we are truly missing a profile record.
         const newProfile = {
           id: userId,
           name: email?.split('@')[0] || 'User',
           email: email || '',
-          role: email === 'arhuse8@gmail.com' ? 'dev' : 'user',
+          role: 'viewer', // Default role
           created_at: new Date().toISOString()
         };
-        const { data: createdProfile, error: createError } = await supabase
+        
+        const { data: created, error: insError } = await supabase
           .from('profiles')
           .insert([newProfile])
           .select()
           .single();
-        
-        if (!createError) {
-          setProfile(createdProfile);
-        }
+          
+        if (!insError) setProfile(created);
       }
     } catch (error) {
       console.error("Error fetching profile", error);
+    } finally {
+      if (mountedRef.current) setLoading(false);
     }
   };
 
@@ -74,10 +76,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const sessionUser = session?.user ?? null;
           setUser(sessionUser);
           if (sessionUser) {
-            fetchProfile(sessionUser.id, sessionUser.email).catch(err => console.error("Profile fetch error during init:", err));
+            await fetchProfile(sessionUser.id, sessionUser.email);
+          } else {
+            setLoading(false);
           }
-          // Set loading false as soon as session is checked
-          setLoading(false);
         }
       } catch (error) {
         console.error("Session initialization error:", error);
@@ -92,11 +94,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const sessionUser = session?.user ?? null;
         setUser(sessionUser);
         if (sessionUser) {
-          fetchProfile(sessionUser.id, sessionUser.email).catch(err => console.error("Profile fetch error during auth change:", err));
+          await fetchProfile(sessionUser.id, sessionUser.email);
         } else {
           setProfile(null);
+          setLoading(false);
         }
-        setLoading(false);
       }
     });
 
@@ -119,23 +121,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
-      setLoading(true);
-      // Optimistic state clear to make the UI responsive immediately
+      // Optimistic state clear for instant UI feedback
       setUser(null);
       setProfile(null);
       
-      // Attempt network signout but don't hang the app if it fails/times out
-      const signOutPromise = supabase.auth.signOut();
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Sign out timeout')), 2000)
-      );
+      // We don't necessarily need to set loading(true) here as we want the app to stay responsive
+      // The ProtectedRoute will see user is null and handle redirection
       
-      await Promise.race([signOutPromise, timeoutPromise]).catch(err => {
-        console.warn("Sign out background task warning:", err);
-      });
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
     } catch (error) {
       console.error("Sign out error:", error);
     } finally {
+      // Ensure loading is false in case it was true
       if (mountedRef.current) setLoading(false);
     }
   };

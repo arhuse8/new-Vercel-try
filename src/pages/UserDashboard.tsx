@@ -175,8 +175,8 @@ function CreateMatch() {
         setTimeout(() => reject(new Error('Request timed out. Check your "matches" table exists and RLS policies allow inserts.')), 15000)
       );
 
-      await Promise.race([createPromise, timeoutPromise]);
-      navigate(`/dashboard/matches`);
+      const createdMatchId = await Promise.race([createPromise, timeoutPromise]) as string;
+      navigate(`/live/${createdMatchId}`);
     } catch (err: any) {
       console.error("Match creation error:", err);
       setError(err?.message || 'Failed to create match. Unknown error.');

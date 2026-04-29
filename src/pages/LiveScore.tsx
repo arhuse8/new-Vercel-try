@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ShieldCheck, Zap, History } from 'lucide-react';
+import { ChevronLeft, Zap, History } from 'lucide-react';
 import { MatchStatus } from '../types';
 
 export default function LiveScore() {
@@ -42,20 +42,22 @@ export default function LiveScore() {
     const channel = supabase
       .channel(`match_${id}`)
       .on(
-        'postgres_changes',
+        'postgres_changes' as any,
         { event: '*', table: 'matches', filter: `id=eq.${id}` },
-        (payload) => {
+        (payload: any) => {
           const m = payload.new as any;
-          setMatch({
-            id: m.id,
-            teamA: m.team_a,
-            teamB: m.team_b,
-            format: m.format,
-            overs: m.overs,
-            status: m.status,
-            createdBy: m.created_by,
-            score: m.score
-          });
+          if (m) {
+            setMatch({
+              id: m.id,
+              teamA: m.team_a,
+              teamB: m.team_b,
+              format: m.format,
+              overs: m.overs,
+              status: m.status,
+              createdBy: m.created_by,
+              score: m.score
+            });
+          }
         }
       )
       .subscribe();
@@ -68,15 +70,30 @@ export default function LiveScore() {
   async function handleScoreUpdate(val: string) {
     if (!id || !liveScore) return;
     
-    let { runs, wickets, overs, balls, recentBalls } = liveScore;
+    let { runs, wickets, overs, balls, recentBalls, history, battingTeam } = liveScore;
+    runs = runs || 0;
+    wickets = wickets || 0;
+    overs = overs || 0;
+    balls = balls || 0;
+    recentBalls = recentBalls || [];
+    history = history || [];
+    battingTeam = battingTeam || match.teamA;
     
+    let eventDesc = '';
     if (val === 'W') {
       wickets += 1;
+      eventDesc = 'OUT! Wicket falls.';
     } else if (val === 'WD') {
       runs += 1;
+      eventDesc = 'Wide ball. 1 run added.';
+    } else if (val === 'NB') {
+      runs += 1;
+      eventDesc = 'No ball. 1 run added.';
     } else {
-      runs += parseInt(val);
+      const r = parseInt(val);
+      runs += r;
       balls += 1;
+      eventDesc = r === 6 ? 'SIX! Massive hit!' : r === 4 ? 'FOUR! Beautiful boundary.' : `${r} run(s).`;
     }
 
     if (balls >= 6) {
@@ -84,17 +101,29 @@ export default function LiveScore() {
       balls = 0;
     }
 
-    const updatedBalls = [...(recentBalls || []), val].slice(-20);
+    const currentOver = `${overs}.${balls}`;
+    const newEvent = {
+      ball: currentOver,
+      val: val,
+      desc: eventDesc,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    const updatedRecent = [...recentBalls, val].slice(-20);
+    const updatedHistory = [newEvent, ...history].slice(0, 50);
 
     const { error } = await supabase
       .from('matches')
       .update({
         score: {
+          ...liveScore,
           runs,
           wickets,
           overs,
           balls,
-          recentBalls: updatedBalls
+          recentBalls: updatedRecent,
+          history: updatedHistory,
+          battingTeam
         },
         status: 'live'
       })
@@ -102,6 +131,25 @@ export default function LiveScore() {
 
     if (error) console.error(error);
   }
+
+  const toggleInnings = async () => {
+    if (!id || !liveScore) return;
+    const { battingTeam } = liveScore;
+    const nextBatting = battingTeam === match.teamA ? match.teamB : match.teamA;
+    
+    await supabase.from('matches').update({
+      score: {
+        ...liveScore,
+        battingTeam: nextBatting,
+        runs: 0,
+        wickets: 0,
+        overs: 0,
+        balls: 0,
+        recentBalls: [],
+        history: [{ ball: '0.0', val: 'START', desc: `Innings break. ${nextBatting} starts batting.`, time: new Date().toLocaleTimeString() }, ...(liveScore.history || [])]
+      }
+    }).eq('id', id);
+  };
 
   const endMatch = async () => {
     await supabase
@@ -213,16 +261,53 @@ export default function LiveScore() {
                      <button key={run} onClick={() => handleScoreUpdate(run.toString())} className="py-8 bg-neutral-50 border-4 border-neutral-100 rounded-3xl font-black text-3xl hover:border-black transition-all active:scale-95">{run}</button>
                    ))}
                    <button onClick={() => handleScoreUpdate('WD')} className="py-8 bg-orange-50 border-4 border-orange-100 rounded-3xl font-black text-2xl text-orange-600 hover:border-orange-600 transition-all active:scale-95">WD</button>
-                   <button onClick={() => handleScoreUpdate('W')} className="py-8 bg-black border-4 border-black rounded-3xl font-black text-2xl text-white hover:bg-neutral-800 transition-all active:scale-95">WKT</button>
+                   <button onClick={() => handleScoreUpdate('NB')} className="py-8 bg-blue-50 border-4 border-blue-100 rounded-3xl font-black text-2xl text-blue-600 hover:border-blue-600 transition-all active:scale-95">NB</button>
+                   <button onClick={() => handleScoreUpdate('W')} className="py-8 bg-black border-4 border-black rounded-3xl font-black text-2xl text-white hover:bg-neutral-800 transition-all active:scale-95 col-span-2">WKT</button>
                 </div>
 
-                <div className="flex gap-4">
-                   <button className="flex-1 py-5 bg-neutral-100 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-neutral-200 transition-all">Undo</button>
-                   <button onClick={endMatch} className="flex-1 py-5 bg-black text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-orange-600 transition-all">End Match</button>
+                <div className="flex flex-wrap gap-4">
+                   <button onClick={toggleInnings} className="flex-1 py-5 bg-neutral-100 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-neutral-200 transition-all min-w-[150px]">Switch Innings</button>
+                   <button onClick={endMatch} className="flex-1 py-5 bg-black text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-orange-600 transition-all min-w-[150px]">Finalize Match</button>
                 </div>
               </motion.section>
             )}
           </AnimatePresence>
+
+          {/* Commentary Feed */}
+          <section className="space-y-6">
+             <div className="flex items-center gap-3 mb-8">
+                <History className="text-orange-500" size={20} />
+                <h3 className="text-xl font-black uppercase tracking-tighter">Live Commentary</h3>
+             </div>
+             
+             <div className="space-y-4">
+                {liveScore?.history?.length > 0 ? (
+                  liveScore.history.map((item: any, i: number) => (
+                    <motion.div 
+                      key={i}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="bg-neutral-900/50 p-6 rounded-3xl border border-white/5 flex gap-6 items-start group hover:bg-neutral-900 transition-all"
+                    >
+                       <div className="flex flex-col items-center shrink-0">
+                          <span className="text-[10px] font-black text-orange-500 mb-1 leading-none">{item.ball}</span>
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black ${item.val === 'W' ? 'bg-red-600 text-white' : item.val === '6' || item.val === '4' ? 'bg-orange-600 text-white' : 'bg-white/10 text-neutral-400'}`}>
+                             {item.val}
+                          </div>
+                       </div>
+                       <div className="flex-1">
+                          <p className="text-sm font-bold text-neutral-200 mb-2 leading-relaxed">{item.desc}</p>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600">{item.time}</span>
+                       </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="py-12 text-center text-neutral-600 font-black uppercase tracking-widest text-[10px] bg-neutral-900/30 rounded-[3rem] border border-dashed border-white/5">
+                     Live link established. Awaiting match start...
+                  </div>
+                )}
+             </div>
+          </section>
 
           {!isOrganizer && match.status === 'upcoming' && (
              <div className="text-center p-24 bg-neutral-900 border border-white/5 rounded-[3rem]">
@@ -242,40 +327,6 @@ export default function LiveScore() {
                <span className="text-3xl font-black italic text-white tracking-tighter">7.1</span>
             </div>
           </section>
-       </div>
-    </div>
-  );
-}
-
-function TeamScore({ name, target }: any) {
-  return (
-    <div className={`flex flex-col items-center gap-4 flex-1 transition-all ${target ? 'opacity-100 scale-110' : 'opacity-40 scale-100 grayscale'}`}>
-       <div className={`w-24 h-24 rounded-[32px] border-4 flex items-center justify-center font-black text-4xl ${target ? 'bg-orange-600 border-orange-500/20 text-white shadow-2xl shadow-orange-500/30' : 'bg-neutral-800 border-white/5 text-neutral-500'}`}>
-          {name?.[0]}
-       </div>
-       <span className="text-lg font-black uppercase tracking-tighter text-center">{name}</span>
-    </div>
-  );
-}
-
-function ScoreButton({ label, color, onClick }: any) {
-  return (
-    <button 
-      onClick={onClick}
-      className={`py-6 rounded-2xl border-2 flex items-center justify-center font-black text-xl transition-all active:scale-95 ${color || 'bg-neutral-50 border-neutral-100 text-neutral-900 hover:border-neutral-200'}`}
-    >
-      {label}
-    </button>
-  );
-}
-
-function MiniStat({ label, value, unit }: any) {
-  return (
-    <div className="bg-white/5 p-6 rounded-3xl border border-white/5">
-       <span className="text-[10px] uppercase tracking-widest font-black text-neutral-500 mb-2 block">{label}</span>
-       <div className="flex items-baseline gap-1">
-          <span className="text-2xl font-black italic tracking-tighter">{value}</span>
-          <span className="text-[10px] font-bold text-neutral-600 uppercase">{unit}</span>
        </div>
     </div>
   );

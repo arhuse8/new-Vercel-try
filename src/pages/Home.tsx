@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Trophy, Activity, Zap, LayoutDashboard, Users, Play, ArrowRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { useMatches } from '../hooks/useMatches';
 import { Card, CardContent } from '../components/ui/Card';
@@ -26,6 +26,14 @@ const ActionBox = ({ icon, title, to }: { icon: string, title: string, to: strin
 export default function Home() {
   const { profile } = useAuth();
   const { matches } = useMatches();
+  
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (profile) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [profile, navigate]);
   
   const liveMatch = matches.find(m => m.status === 'live');
   const isAdmin = profile?.role === 'admin' || profile?.role === 'dev';

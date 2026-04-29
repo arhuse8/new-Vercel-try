@@ -25,7 +25,7 @@ export default function Register() {
 
     try {
       // Use provided email or generate dummy one
-      const finalEmail = email.trim() || `user.${mobile}@apnacricket.com`;
+      const finalEmail = email.trim() || `${mobile.replace(/\s+/g, '')}@apnacricket.com`;
       
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: finalEmail,
@@ -47,22 +47,37 @@ export default function Register() {
       }
       
       if (data.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([{
-            id: data.user.id,
-            name: name,
-            email: finalEmail,
-            role: role,
-            mobile: mobile
-          }]);
-        
-        if (profileError && profileError.code !== '23505') {
-          console.error("Profile creation error:", profileError);
+        // If email confirmation is ON, we won't have a session, 
+        // and RLS might block profile insertion.
+        // We attempt it, but catch errors gracefully.
+        try {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert([{
+              id: data.user.id,
+              name: name,
+              email: finalEmail,
+              role: role,
+              mobile: mobile
+            }]);
+          
+          if (profileError && profileError.code !== '23505') {
+            console.warn("Direct profile insert failed, likely RLS or confirmation requirement:", profileError);
+          }
+        } catch (pErr) {
+          console.warn("Profile insert catch:", pErr);
         }
       }
-      
-      navigate('/dashboard');
+
+      // If user is logged in (session exists), navigate.
+      // If not, they might need to verify email or something happened.
+      if (data.session) {
+        navigate('/dashboard', { replace: true });
+      } else {
+        // If no session but no error, either email confirmation is on or it's a slow redirect
+        setError('Account created! If you cannot log in, please check if "Confirm Email" is OFF in your Supabase Auth settings.');
+        // We don't automatically navigate if there's no session to avoid ProtectedRoute kickback
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to register. Please try again.');
@@ -70,6 +85,14 @@ export default function Register() {
       setLoading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center font-mono uppercase tracking-widest animate-pulse bg-slate-50">
+        Loading Platform...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-6 py-12">

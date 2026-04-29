@@ -20,7 +20,7 @@ export default function Login() {
       // If no @ in identifier, assume it's mobile and map to dummy email
       let email = identifier.trim();
       if (!email.includes('@')) {
-        email = `${email}@apnacricket.com`;
+        email = `${email.replace(/\s+/g, '')}@apnacricket.com`;
       }
 
       const { error: authError } = await supabase.auth.signInWithPassword({
@@ -30,7 +30,7 @@ export default function Login() {
       
       if (authError) throw authError;
       
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Invalid Mobile/Email or PIN. Please try again.');
@@ -38,6 +38,14 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center font-mono uppercase tracking-widest animate-pulse bg-slate-50">
+        Loading Platform...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-6 py-12">

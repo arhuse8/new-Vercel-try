@@ -65,7 +65,7 @@ export default function LiveMatches() {
   );
 }
 
-function MatchCard({ match, isLive }: { match: Match; isLive?: boolean }) {
+function MatchCard({ match, isLive }: any) {
   return (
     <Card className={`flex flex-col justify-between h-full ${isLive ? 'border-red-100 shadow-lg shadow-red-500/5' : ''}`}>
       <CardContent className="flex flex-col gap-4">

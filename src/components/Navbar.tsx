@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
-import { Trophy, User, LogIn, Globe, Activity, LayoutDashboard, Settings } from 'lucide-react';
+import { Trophy, User, LogIn, Globe, Activity, LayoutDashboard, Settings, Terminal } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export function Navbar() {
@@ -8,9 +8,15 @@ export function Navbar() {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await signOut();
-    navigate('/');
+    try {
+      await signOut();
+      navigate('/login', { replace: true });
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
+
+  const isOrganizer = profile?.role === 'organizer' || profile?.role === 'dev' || profile?.role === 'admin';
 
   return (
     <nav className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-4 md:px-8 shrink-0 sticky top-0 z-50">
@@ -36,11 +42,28 @@ export function Navbar() {
         
         {user ? (
           <div className="flex items-center gap-3">
+            {profile?.role === 'dev' && (
+              <Link 
+                to="/dev-control" 
+                className="hidden sm:flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-green-600 hover:bg-green-50 transition-colors px-3 h-10 border border-green-100 rounded-xl"
+              >
+                <Terminal size={14} /> Dev
+              </Link>
+            )}
+            {isOrganizer && (
+              <Link 
+                to="/dashboard/create-match" 
+                className="hidden sm:flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-cricket-green transition-colors px-3 h-10 border border-slate-100 rounded-xl"
+              >
+                <Activity size={14} /> Host
+              </Link>
+            )}
             <Link 
               to="/dashboard" 
-              className="px-5 py-2.5 bg-black text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-cricket-green transition-all hover:scale-105 active:scale-95 shadow-xl shadow-black/5"
+              className="px-5 py-2.5 bg-black text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-cricket-green transition-all hover:scale-105 active:scale-95 shadow-xl shadow-black/5 flex items-center gap-2"
             >
-              Dashboard
+              <User size={12} className="text-white/50" />
+              {profile?.name || 'Dashboard'}
             </Link>
             
             <div className="flex items-center gap-1.5 pl-3 border-l border-slate-100">

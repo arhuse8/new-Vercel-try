@@ -21,7 +21,14 @@ const PrivateRoute = ({ children, role }: { children: React.ReactNode, role?: st
   const { user, profile, loading } = useAuth();
   if (loading) return <div className="h-screen flex items-center justify-center font-mono uppercase tracking-widest animate-pulse">Loading Platform...</div>;
   if (!user) return <Navigate to="/login" />;
-  if (role && profile?.role !== role) return <Navigate to="/" />;
+  
+  if (role) {
+    const isAdmin = profile?.role === 'admin';
+    const isDev = profile?.role === 'dev';
+    if (role === 'admin' && !isAdmin && !isDev) return <Navigate to="/" />;
+    if (profile?.role !== role && !isDev) return <Navigate to="/" />;
+  }
+  
   return <>{children}</>;
 };
 

@@ -63,21 +63,39 @@ Make sure to enable replication for the `matches` table to support real-time sco
 2. Click on the **supabase_realtime** publication.
 3. Toggle the **matches** table to **ON**.
 
-## 4. Authentication Settings (CRITICAL)
+## 4. Authentication Settings (CRITICAL - PLEASE READ)
 
-To avoid registration errors, you **MUST** configure your Supabase Authentication settings as follows:
+To avoid registration being stuck in "Processing...", you **MUST** configure your Supabase Authentication settings exactly like this:
 
-1.  **Enable Email Provider:**
+1.  **Email Provider Configuration:**
     *   Go to **Authentication** -> **Providers** -> **Email**.
-    *   Ensure **Enable Email Signup** is toggled **ON**.
-    *   Ensure **Confirm email** is toggled **OFF** (to skip verification for dummy/optional emails).
+    *   **Enable Email Signup:** Set to **ON**.
+    *   **Confirm email:** Set to **OFF**. (If this is ON, registration will appear to hang because users can't log in without verification).
+    *   **Secure email change:** Set to **OFF** (optional but recommended for dev).
     *   Click **Save**.
 
-2.  **Rate Limiting (Optional):**
-    *   If you get "Email rate limit exceeded", you may need to wait or adjust rate limits in **Project Settings** -> **Auth** -> **Rate Limits**, though basic testing shouldn't hit this unless many accounts are created per hour.
+2.  **External Redirect URLs (Redirection Error Fix):**
+    *   Go to **Authentication** -> **URL Configuration**.
+    *   **Site URL:** Set to your application's domain (e.g., `https://your-app.vercel.app`).
+    *   **Redirect URLs:** Add `http://localhost:3000` for local development.
 
-3.  **Site URL:**
-    *   In **Authentication** -> **URL Configuration**, ensure the **Site URL** is set to your application's domain.
+3.  **User Trigger (Automatic Profile Creation):**
+    *   If registration still feels slow, verify your `profiles` table permissions.
+    *   The app attempts to create a profile automatically, but if you want true reliability, add a Postgres trigger in Supabase:
+    ```sql
+    -- Create profile on signup automatically
+    create function public.handle_new_user()
+    returns trigger as $$
+    begin
+      insert into public.profiles (id, name, email, role)
+      values (new.id, new.raw_user_meta_data->>'full_name', new.email, new.raw_user_meta_data->>'role');
+      return new;
+    end;
+    $$ language plpgsql security definer;
 
-If "Enable Email Signup" is OFF, the app will show "Email signups are disabled".
-If "Confirm email" is ON, users won't be able to log in until they verify an email (which doesn't exist for dummy accounts).
+    create trigger on_auth_user_created
+      after insert on auth.users
+      for each row execute procedure public.handle_new_user();
+    ```
+
+If "Confirm email" is ON, the app will create the user but won't log them in, causing the registration page to stay on an error or "stuck" state.
